@@ -50,11 +50,6 @@ class WsgiDavDirBrowser(BaseMiddleware):
         # Add an additional read-only FS provider that serves the dir_browser assets
         self.wsgidav_app.add_provider(ASSET_SHARE, self.htdocs_path, readonly=True)
 
-        # Prepare a Jinja2 template
-        templateLoader = FileSystemLoader(searchpath=self.htdocs_path)
-        templateEnv = Environment(loader=templateLoader)
-        self.template = templateEnv.get_template("template.html")
-
     def __call__(self, environ, start_response):
         path = environ["PATH_INFO"]
 
@@ -101,6 +96,11 @@ class WsgiDavDirBrowser(BaseMiddleware):
                 return [res]
 
             context = self._get_context(environ, dav_res)
+
+            # Prepare a Jinja2 template
+            templateLoader = FileSystemLoader(searchpath=self.htdocs_path)
+            templateEnv = Environment(loader=templateLoader)
+            self.template = templateEnv.get_template("template.html")
 
             res = self.template.render(**context)
             res = compat.to_bytes(res)
@@ -150,7 +150,8 @@ class WsgiDavDirBrowser(BaseMiddleware):
 
         trailer = dirConfig.get("response_trailer")
         if trailer is True:
-            trailer = "${version} - ${time}"
+            #trailer = "${version} - ${time}"
+            trailer = "Shihira Fung - ${time}"
 
         if trailer:
             trailer = trailer.replace(
@@ -227,13 +228,19 @@ class WsgiDavDirBrowser(BaseMiddleware):
             if last_modified is None:
                 entry["str_modified"] = ""
             else:
-                entry["str_modified"] = util.get_rfc1123_time(last_modified)
+                import time
+                entry["str_modified"] = time.strftime("%b %d %Y, %H:%M:%S", time.localtime(last_modified))
 
             entry["str_size"] = "-"
             if not entry.get("is_collection"):
                 content_length = entry.get("content_length")
                 if content_length is not None:
-                    entry["str_size"] = util.byte_number_string(content_length)
+                    for unit in ['Bytes', 'KiB', 'MiB', 'GiB']:
+                        if content_length < 1024:
+                            content_length = "%.2f %s" % (content_length, unit)
+                            break
+                        content_length /= 1024.0
+                    entry["str_size"] = content_length
 
             rows.append(entry)
 

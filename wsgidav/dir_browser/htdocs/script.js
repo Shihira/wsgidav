@@ -1,99 +1,45 @@
-// Cached plugin reference (or null. if it could not be instantiated)
-var sharePointPlugin = undefined;
+$("#upload-button").click(function() {
+    var filedata = $("#upload-file")[0].files[0];
 
-function onLoad() {
-//    console.log("loaded.");
-}
+    var xhr = new window.XMLHttpRequest();
+    xhr.open("PUT", filedata.name, true);
 
+    xhr.upload.addEventListener("progress", function(evt) {
+	var status = "";
 
-/**
- * Find (and cache) an available ActiveXObject Sharepoint plugin.
- *
- * @returns {ActiveXObject} or null
- */
-function getSharePointPlugin() {
-	if( sharePointPlugin !== undefined ) {
-		return sharePointPlugin;
+	if (evt.lengthComputable) {
+	    var percentComplete = evt.loaded / evt.total;
+	    percentComplete = percentComplete * 100;
+	    status = ": " + percentComplete.toFixed(3) + "%";
+
+	    if (parseInt(percentComplete) == 100)
+	    {
+		status = " Successfully";
+
+		$("#upload-button").removeClass("btn-primary");
+		$("#upload-button").addClass("btn-success");
+
+		setTimeout(function() {
+		    document.location.reload();
+		}, 300);
+	    }
+
+	    $("#upload-button").text("Upload" + status);
 	}
-	sharePointPlugin = null;
+    }, false);
 
-	var plugin = document.getElementById("winFirefoxPlugin");
+    xhr.send(filedata);
+});
 
-	if ( plugin && typeof plugin.EditDocument === "function" ) {
-		window.console && console.log("Using embedded custom SharePoint plugin.");
-		sharePointPlugin = plugin;
-	} else if( "ActiveXObject" in window ){
-		plugin = null;
-		try {
-			plugin = new ActiveXObject("SharePoint.OpenDocuments.3"); // Office 2007+
-		} catch(e) {
-			try {
-				plugin = new ActiveXObject("SharePoint.OpenDocuments.2"); // Office 2003
-			} catch(e2) {
-				try {
-					plugin = new ActiveXObject("SharePoint.OpenDocuments.1"); // Office 2000/XP
-				} catch(e3) {
-					window.console && console.warn("Could not create ActiveXObject('SharePoint.OpenDocuments'): (requires IE <= 11 and matching security settings.");
-				}
-			}
-		}
-		if( plugin ){
-			window.console && console.log("Using native SharePoint plugin.");
-			sharePointPlugin = plugin;
-		}
-	}
-	return sharePointPlugin;
-}
+$(".command-button").click(function() {
+    var link = $(this).parent().parent().find("a").attr("href");
+    var ext = link.match(/\.[a-zA-Z0-9]+$/); ext = ext ? ext[0] : null;
 
+    $("#command-cbz").attr("href", ext == ".cbz" ? "/Pages/ComicReader.html?" + $.param({"cbz": link}) : "#");
+    $("#command-cbz")[ext == ".cbz" ? "removeClass" : "addClass"]("disabled");
+    $("#command-md").attr("href", ext == ".md" ? "/Pages/Markdown.html?" + $.param({"md": link}) : "#");
+    $("#command-md")[ext == ".md" ? "removeClass" : "addClass"]("disabled");
 
-/**
- * Open an MS Office document either with SharePoint plugin or using the 'ms-' URL prefix.
- *
- * @param {object} opts
- * @returns {boolean} true if the URL could be opened
- */
-function openWebDavDocument(opts) {
-	var ofe_link = opts.ofe + opts.href,  // (e.g. 'ms-word:ofe|u|http://server/path/file.docx')
-		url = opts.href;
-
-	var plugin = getSharePointPlugin();
-	var res = false;
-
-	if( plugin ) {
-		try {
-			res = plugin.EditDocument(url);
-			if( res === false ) {
-				window.console && console.warn("SharePoint plugin.EditDocument(" + url + ") returned false");
-			}
-		} catch(e) {
-			window.console && console.warn("SharePoint plugin.EditDocument(" + url + ") raised an exception", e);
-		}
-	}
-	if ( res === false ) {
-		if( ofe_link ) {
-			window.console && console.log("Could not use SharePoint plugin: trying " + ofe_link);
-			window.open(ofe_link, "_self");
-			res = true;
-		}
-	}
-	return res;
-}
-
-
-/**
- * Event delegation handler for clicks on a-tags with class 'msoffice'.
- */
-function onClickTable(event) {
-	var target = event.target || event.srcElement,
-		opts = {
-			href: target.href,
-			ofe: target.getAttribute("data-ofe")
-		};
-
-    if( target.className === "msoffice" ){
-        if( openWebDavDocument(opts) ){
-            // prevent default processing if the document could be opened
-            return false;
-        }
-    }
-}
+    $("#command-title").text(decodeURIComponent(link));
+    $("#command-dialog").modal();
+});

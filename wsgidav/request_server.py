@@ -31,7 +31,16 @@ from wsgidav.dav_error import (
     PRECONDITION_CODE_PropfindFiniteDepth,
 )
 from wsgidav.util import etree
+from urllib.parse import parse_qs
 
+MIME_QUERY = {}
+def mime_query(mime_list):
+    def f(cls):
+        for t in mime_list:
+            MIME_QUERY[t] = cls
+    return f
+
+import wsgidav.request_query
 
 __docformat__ = "reStructuredText"
 
@@ -303,6 +312,7 @@ class RequestServer(object):
 
         # Parse PROPFIND request
         requestEL = util.parse_xml_body(environ, allow_empty=True)
+        print("parsed: " + str(requestEL))
         if requestEL is None:
             # An empty PROPFIND request body MUST be treated as a request for
             # the names and values of all properties.
@@ -1518,6 +1528,41 @@ class RequestServer(object):
                 "(WsgiDavDirBrowser middleware may be enabled using "
                 "the dir_browser option.)",
             )
+
+        query = parse_qs(environ["QUERY_STRING"])
+        for _ in [None]:
+            if "q" not in query:
+                break
+            query_name = query["q"]
+            if not query_name:
+                break
+            query_name = query_name[0]
+            mime = res.get_content_type()
+            if mime not in MIME_QUERY:
+                break
+            cls = MIME_QUERY[mime]
+            inst = cls(res, query)
+            if not inst.is_valid():
+                break
+            if not hasattr(inst, query_name):
+                break
+            attr = getattr(inst, query_name)
+            if not callable(attr):
+                break
+            ret = attr()
+            if not isinstance(ret, tuple) or len(ret) != 3:
+                break
+
+            code, header, body = ret
+            if isinstance(body, str):
+                body = body.encode("utf8")
+            elif not isinstance(body, bytes):
+                body = str(body).encode("utf8")
+            header += [("Content-Length", str(len(body)))]
+
+            start_response(code, header)
+            yield body
+            return
 
         self._evaluate_if_headers(res, environ)
 

@@ -31,7 +31,6 @@ _logger = util.get_module_logger(__name__)
 
 BUFFER_SIZE = 8192
 
-
 # ========================================================================
 # FileResource
 # ========================================================================
@@ -67,6 +66,9 @@ class FileResource(DAVNonCollection):
 
     def get_last_modified(self):
         return self.file_stat[stat.ST_MTIME]
+
+    def get_file_path(self):
+        return self._file_path
 
     def support_etag(self):
         return True
@@ -164,7 +166,6 @@ class FileResource(DAVNonCollection):
         if not dry_run:
             os.utime(self._file_path, (secs, secs))
         return True
-
 
 # ========================================================================
 # FolderResource
