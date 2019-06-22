@@ -3,7 +3,7 @@
 server_cli
 ==========
 
-:Author: Martin Wendt, moogle(at)wwwendt.de
+:Author: Martin Wendt
 :Copyright: Licensed under the MIT license, see LICENSE file in this package.
 
 Standalone server that runs WsgiDAV.
@@ -96,14 +96,14 @@ Run a WEBDAV server to share file system folders.
 
 Examples:
 
-  Share filesystem folder '/temp':
-    wsgidav --port=80 --host=0.0.0.0 --root=/temp
+  Share filesystem folder '/temp' for anonymous access (no config file used):
+    wsgidav --port=80 --host=0.0.0.0 --root=/temp --auth=anonymous
 
   Run using a specific configuration file:
-    wsgidav --port=80 --host=0.0.0.0 --config=~/wsgidav.yaml
+    wsgidav --port=80 --host=0.0.0.0 --config=~/my_wsgidav.yaml
 
   If no config file is specified, the application will look for a file named
-  'wsgidav.conf' in the current directory.
+  'wsgidav.yaml' in the current directory.
   See
     http://wsgidav.readthedocs.io/en/latest/run-configure.html
   for some explanation of the configuration file format.
@@ -131,10 +131,9 @@ See https://github.com/mar10/wsgidav for additional information.
         help="port to serve on (default: 8080)",
     )
     parser.add_argument(
-        "-H",
-        "--host",  # '-h' conflicts with --help
+        "-H",  # '-h' conflicts with --help
+        "--host",
         dest="host",
-        # default="localhost",
         help=(
             "host to serve from (default: localhost). 'localhost' is only "
             "accessible from the local computer. Use 0.0.0.0 to make your "
@@ -146,21 +145,26 @@ See https://github.com/mar10/wsgidav for additional information.
         "--root",
         dest="root_path",
         action=FullExpandedPath,
-        # type=arg_is_dir,
         help="path to a file system folder to publish as share '/'.",
+    )
+    parser.add_argument(
+        "--auth",
+        choices=("anonymous", "nt", "pam-login"),
+        help="quick configuration of a domain controller when no config file "
+        "is used",
     )
     parser.add_argument(
         "--server",
         choices=SUPPORTED_SERVERS.keys(),
-        default="cheroot",
-        help="type of pre-installed WSGI server to use (default: %(default)s).",
+        # default="cheroot",
+        help="type of pre-installed WSGI server to use (default: cheroot).",
     )
     parser.add_argument(
         "--ssl-adapter",
         choices=("builtin", "pyopenssl"),
-        default="builtin",
+        # default="builtin",
         help="used by 'cheroot' server if SSL certificates are configured "
-        "(default: %(default)s.",
+        "(default: builtin).",
     )
 
     qv_group = parser.add_mutually_exclusive_group()
@@ -175,7 +179,8 @@ See https://github.com/mar10/wsgidav for additional information.
         "-q", "--quiet", default=0, action="count", help="decrement verbosity by one"
     )
 
-    parser.add_argument(
+    qv_group = parser.add_mutually_exclusive_group()
+    qv_group.add_argument(
         "-c",
         "--config",
         dest="config_file",
@@ -186,7 +191,7 @@ See https://github.com/mar10/wsgidav for additional information.
             )
         ),
     )
-    parser.add_argument(
+    qv_group.add_argument(
         "--no-config",
         action="store_true",
         dest="no_config",
@@ -196,16 +201,11 @@ See https://github.com/mar10/wsgidav for additional information.
     parser.add_argument(
         "-V",
         "--version",
-        # action="version",
-        # version=__version__,
         action="store_true",
         help="print version info and exit (may be combined with --verbose)",
     )
 
     args = parser.parse_args()
-
-    # if args.quiet and args.verbose > 3:
-    #     parser.error("-v and -q are mutually exclusive")
 
     args.verbose -= args.quiet
     del args.quiet
@@ -225,8 +225,7 @@ See https://github.com/mar10/wsgidav for additional information.
         sys.exit()
 
     if args.no_config:
-        if args.config_file:
-            parser.error("--config and --no-config are mutually exclusive")
+        pass
         # ... else ignore default config files
     elif args.config_file is None:
         # If --config was omitted, use default (if it exists)
@@ -253,7 +252,7 @@ See https://github.com/mar10/wsgidav for additional information.
         print("Command line args:")
         for k, v in cmdLineOpts.items():
             print("    {:>12}: {}".format(k, v))
-    return cmdLineOpts
+    return cmdLineOpts, parser
 
 
 def _read_config_file(config_file, verbose):
@@ -306,18 +305,16 @@ def _read_config_file(config_file, verbose):
 
 def _init_config():
     """Setup configuration dictionary from default, command line and configuration file."""
-    cli_opts = _init_command_line_options()
+    cli_opts, parser = _init_command_line_options()
     cli_verbose = cli_opts["verbose"]
 
     # Set config defaults
-    # config = DEFAULT_CONFIG.copy()
     config = copy.deepcopy(DEFAULT_CONFIG)
 
     # Configuration file overrides defaults
     config_file = cli_opts.get("config_file")
     if config_file:
         file_opts = _read_config_file(config_file, cli_verbose)
-        # config.update(file_opts)
         util.deep_update(config, file_opts)
         if cli_verbose != DEFAULT_VERBOSE and "verbose" in file_opts:
             if cli_verbose >= 2:
@@ -336,14 +333,16 @@ def _init_config():
         config["port"] = cli_opts.get("port")
     if cli_opts.get("host"):
         config["host"] = cli_opts.get("host")
-    if cli_opts.get("verbose") is not None:
-        config["verbose"] = cli_opts.get("verbose")
     if cli_opts.get("profile") is not None:
         config["profile"] = True
     if cli_opts.get("server") is not None:
         config["server"] = cli_opts.get("server")
     if cli_opts.get("ssl_adapter") is not None:
         config["ssl_adapter"] = cli_opts.get("ssl_adapter")
+
+    # Command line overrides file only if -v or -q where passed:
+    if cli_opts.get("verbose") != DEFAULT_VERBOSE:
+        config["verbose"] = cli_opts.get("verbose")
 
     if cli_opts.get("root_path"):
         root_path = os.path.abspath(cli_opts.get("root_path"))
@@ -355,8 +354,59 @@ def _init_config():
         print("Configuration({}):\n{}".format(cli_opts["config_file"], pformat(config)))
 
     if not config["provider_mapping"]:
-        print("ERROR: No DAV provider defined. Try --help option.", file=sys.stderr)
-        sys.exit(-1)
+        parser.error("No DAV provider defined.")
+
+    # Quick-configuration of DomainController
+    auth = cli_opts.get("auth")
+    auth_conf = config.get("http_authenticator", {})
+    if auth and auth_conf.get("domain_controller"):
+        parser.error(
+            "--auth option can only be used when no domain_controller is configured"
+        )
+
+    if auth == "anonymous":
+        if config["simple_dc"]["user_mapping"]:
+            parser.error(
+                "--auth=anonymous can only be used when no user_mapping is configured"
+            )
+        auth_conf.update(
+            {
+                "domain_controller": "wsgidav.dc.simple_dc.SimpleDomainController",
+                "accept_basic": True,
+                "accept_digest": True,
+                "default_to_digest": True,
+            }
+        )
+        config["simple_dc"]["user_mapping"] = {"*": True}
+    elif auth == "nt":
+        if config.get("nt_dc"):
+            parser.error(
+                "--auth=nt can only be used when no nt_dc settings are configured"
+            )
+        auth_conf.update(
+            {
+                "domain_controller": "wsgidav.dc.nt_dc.NTDomainController",
+                "accept_basic": True,
+                "accept_digest": False,
+                "default_to_digest": False,
+            }
+        )
+        config["nt_dc"] = {}
+    elif auth == "pam-login":
+        if config.get("pam_dc"):
+            parser.error(
+                "--auth=pam-login can only be used when no pam_dc settings are configured"
+            )
+        auth_conf.update(
+            {
+                "domain_controller": "wsgidav.dc.pam_dc.PAMDomainController",
+                "accept_basic": True,
+                "accept_digest": False,
+                "default_to_digest": False,
+            }
+        )
+        config["pam_dc"] = {"service": "login"}
+    # print(config)
 
     if cli_opts.get("reload"):
         print("Installing paste.reloader.", file=sys.stderr)
@@ -444,19 +494,53 @@ def _run_gevent(app, config, mode):
     gevent.monkey.patch_all()
     from gevent.pywsgi import WSGIServer
 
-    server_args = {
-        "bind_addr": (config["host"], config["port"]),
-        "wsgi_app": app,
-        # TODO: SSL support
-        "keyfile": None,
-        "certfile": None,
-    }
-    protocol = "http"
+    server_args = {"bind_addr": (config["host"], config["port"]), "wsgi_app": app}
+
+    server_name = "WsgiDAV/{} gevent/{} Python/{}".format(
+        __version__, gevent.__version__, util.PYTHON_VERSION
+    )
+
+    # Support SSL
+    ssl_certificate = _get_checked_path(config.get("ssl_certificate"), config)
+    ssl_private_key = _get_checked_path(config.get("ssl_private_key"), config)
+    ssl_certificate_chain = _get_checked_path(
+        config.get("ssl_certificate_chain"), config
+    )
+
     # Override or add custom args
     server_args.update(config.get("server_args", {}))
 
-    dav_server = WSGIServer(server_args["bind_addr"], app)
-    _logger.info("Running {}".format(dav_server))
+    protocol = "http"
+    if ssl_certificate:
+        assert ssl_private_key
+        protocol = "https"
+        _logger.info("SSL / HTTPS enabled.")
+        dav_server = WSGIServer(
+            server_args["bind_addr"],
+            app,
+            keyfile=ssl_private_key,
+            certfile=ssl_certificate,
+            ca_certs=ssl_certificate_chain,
+        )
+
+    else:
+        dav_server = WSGIServer(server_args["bind_addr"], app)
+
+    # If the caller passed a startup event, monkey patch the server to set it
+    # when the request handler loop is entered
+    startup_event = config.get("startup_event")
+    if startup_event:
+
+        def _patched_start():
+            dav_server.start_accepting = org_start  # undo the monkey patch
+            org_start()
+            _logger.info("gevent is ready")
+            startup_event.set()
+
+        org_start = dav_server.start_accepting
+        dav_server.start_accepting = _patched_start
+
+    _logger.info("Running {}".format(server_name))
     _logger.info(
         "Serving on {}://{}:{} ...".format(protocol, config["host"], config["port"])
     )
@@ -605,6 +689,8 @@ def _run_cheroot(app, config, mode):
         "bind_addr": (config["host"], config["port"]),
         "wsgi_app": app,
         "server_name": server_name,
+        # File Explorer needs lot of threads (see issue #149):
+        "numthreads": 256,
     }
     # Override or add custom args
     server_args.update(config.get("server_args", {}))

@@ -27,8 +27,8 @@ This section shows the available options and defaults:
 .. literalinclude:: ../../wsgidav/default_conf.py
     :linenos:
 
-When a Python dict is passed to the :class:`~wsgidav.wsgidav_app.WsgiDAVApp` constructor,
-its values will override those defaults::
+When a Python dict is passed to the :class:`~wsgidav.wsgidav_app.WsgiDAVApp`
+constructor, its values will override the defaults from above::
 
     root_path = gettempdir()
     provider = FilesystemProvider(root_path)
@@ -44,23 +44,23 @@ its values will override those defaults::
 
 Use a Configuration File
 ------------------------
-When running from the CLI (command line interface), *some* settings may be passed as arguments,
-e.g.::
+When running from the CLI (command line interface), *some* settings may be
+passed as arguments, e.g.::
 
-	$ wsgidav --host=0.0.0.0 --port=8080 --root=/tmp
+    $ wsgidav --host=0.0.0.0 --port=8080 --root=/tmp --auth=anonymous
 
-	Serving on http://0.0.0.0:8080 ...
+    Serving on http://0.0.0.0:8080 ...
 
 Much more options are available when a configuration file is used.
 By default ``wsgidav.yaml``,  ``wsgidav.json``, and ``wsgidav.conf`` are searched in the
 local directory.
 An alternative file name can be specified like so::
 
-	$ wsgidav --config=my_config.yaml
+    $ wsgidav --config=my_config.yaml
 
 To *prevent* the use of of a local default configuration file, use this option::
 
-  $ wsgidav --no-config
+    $ wsgidav --no-config
 
 The options described below can be defined for the CLI either
 
@@ -105,10 +105,10 @@ Middleware Stack
 ----------------
 
 WsgiDAV is built as WSGI application (:class:`~wsgidav.wsgidav_app.WsgiDAVApp`)
-that is extended by a list of middleware components that implement additional
+that is extended by a list of middleware components which implement additional
 functionality.
 
-This stack is defined as a list WSGI compliant application instances, e.g.::
+This stack is defined as a list of WSGI compliant application instances, e.g.::
 
     from wsgidav.debug_filter import WsgiDavDebugFilter
 
@@ -123,10 +123,10 @@ This stack is defined as a list WSGI compliant application instances, e.g.::
         ...
         }
 
-If the middleware class constructor has a common signature, it is sufficient to pass the class
-instead of the instantiated object.
-The built-in middleware derives from :class:`~wsgidav.middleware.BaseMiddleware`, so we can
-simplify as::
+If the middleware class constructor has a common signature, it is sufficient to
+pass the class instead of the instantiated object.
+The built-in middleware derives from :class:`~wsgidav.middleware.BaseMiddleware`,
+so we can simplify as::
 
     from wsgidav.dir_browser import WsgiDavDirBrowser
     from wsgidav.debug_filter import WsgiDavDebugFilter
@@ -141,13 +141,13 @@ simplify as::
             ErrorPrinter,
             HTTPAuthenticator,
             WsgiDavDirBrowser,
-            RequestResolver,
+            RequestResolver,  # this must be the last middleware item
             ],
         ...
         }
 
-The middleware stack can be configured and extended. The following example removes the
-directory browser, and adds a third-party debugging tool::
+The middleware stack can be configured and extended. The following example
+removes the directory browser, and adds a third-party debugging tool::
 
     import dozer
 
@@ -171,7 +171,7 @@ directory browser, and adds a third-party debugging tool::
             ErrorPrinter,
             HTTPAuthenticator,
             # WsgiDavDirBrowser,
-            RequestResolver,
+            RequestResolver,  # this must be the last middleware item
             ],
         ...
         }
@@ -179,8 +179,8 @@ directory browser, and adds a third-party debugging tool::
 The stack can also be defined in text files, for example YAML.
 Again, we can pass an import path for a WSGI compliant class if the signature
 is known.
-For third-party middleware however, the constructor's positional arguments should be
-explicitly listed::
+For third-party middleware however, the constructor's positional arguments
+should be explicitly listed::
 
     ...
     middleware_stack:
@@ -197,8 +197,47 @@ explicitly listed::
         - wsgidav.request_resolver.RequestResolver
 
 Note that the external middleware must be available, for example by calling
-``pip install Doze``, so this will not be possible if WsgiDAV is running from the
-MSI installer.
+``pip install Doze``, so this will not be possible if WsgiDAV is running from
+the MSI installer.
+
+
+DAVProvider
+-----------
+
+A DAVProvider handles read and write requests for all URLs that start with
+a given share path.
+
+WsgiDAV comes bundled with ``FilesystemProvider``, a DAVProvider that serves
+DAV requests by reading and writing to the server's file system. |br|
+However, custom DAVProviders may be implemented and used, that publish a
+database backend, cloud drive, or any virtual data structure.
+
+The ``provider_mapping`` configuration routes share paths to specific
+DAVProvider instances.
+
+By default a writable `FilesystemProvider` is assumed, but can be forced
+to read-only.
+Note that a DomainController may still restrict access completely or prevent
+editing depending on authentication.
+
+Three syntax variants are supported:
+
+1. ``<mount_path>: <folder_path>``
+2. ``<mount_path>: { "root": <folder_path>, "readonly": <bool> }``
+3. ``<mount_path>: { "provider": <class_path>, "args:" ..., "kwargs": ... }``
+
+For example::
+
+    provider_mapping:
+        "/": "/path/to/share1"
+        "/home": "~"
+        "/pub":
+            root: "/path/to/share2"
+            readonly: true
+        "/share3":
+            provider: path.to.CustomDAVProviderClass
+            args: ["/path/to/share3", "second_arg"]
+            kwargs: {"another_arg": 42}
 
 
 Property Manager
@@ -217,45 +256,67 @@ Domain Controller
 -----------------
 
 The HTTP authentication middleware relies on a domain controller.
-Currently two variants are supported.
+Currently three variants are supported.
 
 SimpleDomainController
 ~~~~~~~~~~~~~~~~~~~~~~
 
 Allows to authenticate against a plain mapping of shares and user names.
 
+The pseudo-share ``"*"`` maps all URLs that are not explicitly listed.
+
+A value of ``true`` can be used to enable anonymous access.
+
 Example YAML configuration::
 
     http_authenticator:
         domain_controller: null  # Same as wsgidav.dc.simple_dc.SimpleDomainController
-        accept_basic: true
+        accept_basic: true  # Pass false to prevent sending clear text passwords
         accept_digest: true
         default_to_digest: true
 
-    user_mapping:
-        "/share1":
-            "user1":
-                password: "abc123"
-                description: "User 1 for Share 1"
-                roles: []
-        "/share2":
-            "user1":
-                password: "def456"
-                description: "User 1 for Share 2"
-                roles: []
-            "user2":
-                password: "qwerty"
-                description: "User 2 for Share 2"
-                roles: []
+    simple_dc:
+        user_mapping:
+            "*":
+                "user1":
+                    password: "abc123"
+                "user2":
+                    password: "qwerty"
+            "/pub": true
 
+An optional `roles` list will be passed in `environ["wsgidav.auth.roles"]` to
+downstream middleware. This is currently not used by the provided middleware,
+but may be handy for custom handlers::
+
+    simple_dc:
+        user_mapping:
+            "*":
+                "user1":
+                    password: "abc123"
+                    roles: ["editor", "admin"]
+                "user2":
+                    password: "abc123"
+                    roles: []
+
+If no config file is used, anonymous authentication can be enabled on the
+command line like::
+
+    $ wsgidav ... --auth=anonymous
+
+which simply defines this setting::
+
+    simple_dc:
+        user_mapping:
+            "*": true
 
 
 NTDomainController
 ~~~~~~~~~~~~~~~~~~
 Allows users to authenticate against a Windows NT domain or a local computer.
 
-The :class:`~wsgidav.dc.nt_dc.NTDomainController`
-requires basic authentication and thererfore should use SSL.
+The :class:`~wsgidav.dc.nt_dc.NTDomainController` requires basic authentication
+and therefore should use SSL.
+
 Example YAML configuration::
 
     ssl_certificate: wsgidav/server/sample_bogo_server.crt
@@ -267,8 +328,46 @@ Example YAML configuration::
         accept_basic: true
         accept_digest: false
         default_to_digest: false
+
+    nt_dc:
         preset_domain: null
         preset_server: null
+
+If no config file is used, NT authentication can be enabled on the command
+line like::
+
+    $ wsgidav ... --auth=nt
+
+
+PAMDomainController
+~~~~~~~~~~~~~~~~~~~
+Allows users to authenticate against a PAM (Pluggable Authentication Modules),
+that are at the core of user authentication in any modern linux distribution
+and macOS.
+
+The :class:`~wsgidav.dc.pam_dc.PAMDomainController` requires basic
+authentication and therefore should use SSL.
+
+Example YAML configuration that authenticates users against the server's
+known user accounts::
+
+    ssl_certificate: wsgidav/server/sample_bogo_server.crt
+    ssl_private_key: wsgidav/server/sample_bogo_server.key
+    ssl_certificate_chain: None
+
+    http_authenticator:
+        domain_controller: wsgidav.dc.pam_dc.PAMDomainController
+        accept_basic: true
+        accept_digest: false
+        default_to_digest: false
+
+    pam_dc:
+        service: "login"
+
+If no config file is used, PAM authentication can be enabled on the command
+line like::
+
+    $ wsgidav ... --auth=pam-login
 
 
 Sample ``wsgidav.yaml``
@@ -289,22 +388,17 @@ Sample ``wsgidav.json``
 We can also use a `JSON <http://www.json.org>`_ file for configuration.
 The structure is identical to the YAML format.
 
-
 See the :doc:`sample_wsgidav.json` example.
 (Note that the parser allows JavaScript-style comments)
-
-..
-    .. literalinclude:: sample_wsgidav.json
-        :linenos:
-        :language: json
 
 
 Sample ``wsgidav.conf``
 -----------------------
 
-This format uses plain Python syntax, which allows us to use Python data structures,
-and even write helper functions, etc.
+This format uses plain Python syntax, which allows us to use Python data
+structures, and even write helper functions, etc.
 
-This is the most powerful and flexible format, that can be used in complex scenarios.
+This is the most powerful and flexible format, that can be used in complex
+scenarios.
 
 See the :doc:`sample_wsgidav_conf` example.

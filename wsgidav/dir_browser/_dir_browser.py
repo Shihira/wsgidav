@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license.php
 """
@@ -49,6 +49,19 @@ class WsgiDavDirBrowser(BaseMiddleware):
 
         # Add an additional read-only FS provider that serves the dir_browser assets
         self.wsgidav_app.add_provider(ASSET_SHARE, self.htdocs_path, readonly=True)
+        # and make sure we have anonymous access there
+        config.get("simple_dc", {}).get("user_mapping", {}).setdefault(
+            ASSET_SHARE, True
+        )
+
+        # Prepare a Jinja2 template
+        templateLoader = FileSystemLoader(searchpath=self.htdocs_path)
+        templateEnv = Environment(loader=templateLoader)
+        self.template = templateEnv.get_template("template.html")
+        self.dir_config = config.get("dir_browser", {})
+
+    def is_disabled(self):
+        return self.dir_config.get("enable") is False
 
     def __call__(self, environ, start_response):
         path = environ["PATH_INFO"]
@@ -75,8 +88,7 @@ class WsgiDavDirBrowser(BaseMiddleware):
                 )
 
             # Support DAV mount (http://www.ietf.org/rfc/rfc4709.txt)
-            dirConfig = environ["wsgidav.config"].get("dir_browser", {})
-            if dirConfig.get("davmount") and "davmount" in environ.get(
+            if self.dir_config.get("davmount") and "davmount" in environ.get(
                 "QUERY_STRING", ""
             ):
                 collectionUrl = util.make_complete_url(environ)
@@ -134,7 +146,6 @@ class WsgiDavDirBrowser(BaseMiddleware):
         """
         assert dav_res.is_collection
 
-        dirConfig = environ["wsgidav.config"].get("dir_browser", {})
         is_readonly = environ["wsgidav.provider"].is_readonly()
 
         context = {
@@ -144,11 +155,13 @@ class WsgiDavDirBrowser(BaseMiddleware):
             "display_path": compat.unquote(dav_res.get_href()),
             "url": dav_res.get_href(),  # util.make_complete_url(environ),
             "parent_url": util.get_uri_parent(dav_res.get_href()),
-            "config": dirConfig,
+            "config": self.dir_config,
             "is_readonly": is_readonly,
+            "access": "read-only" if is_readonly else "read-write",
+            "is_authenticated": False,
         }
 
-        trailer = dirConfig.get("response_trailer")
+        trailer = self.dir_config.get("response_trailer")
         if trailer is True:
             #trailer = "${version} - ${time}"
             trailer = "Shihira Fung - ${time}"
@@ -186,12 +199,12 @@ class WsgiDavDirBrowser(BaseMiddleware):
                     ext = os.path.splitext(href)[1].lstrip(".").lower()
                     officeType = msOfficeExtToTypeMap.get(ext)
                     if officeType:
-                        if dirConfig.get("ms_sharepoint_support"):
+                        if self.dir_config.get("ms_sharepoint_support"):
                             ofe_prefix = "ms-{}:ofe|u|".format(officeType)
                             a_classes.append("msoffice")
-                        # elif dirConfig.get("ms_sharepoint_plugin"):
+                        # elif self.dir_config.get("ms_sharepoint_plugin"):
                         #     a_classes.append("msoffice")
-                        # elif dirConfig.get("ms_sharepoint_urls"):
+                        # elif self.dir_config.get("ms_sharepoint_urls"):
                         #     href = "ms-{}:ofe|u|{}".format(officeType, href)
 
                 entry = {
@@ -209,16 +222,18 @@ class WsgiDavDirBrowser(BaseMiddleware):
 
                 dirInfoList.append(entry)
         #
-        ignore_patterns = dirConfig.get("ignore", [])
+        ignore_patterns = self.dir_config.get("ignore", [])
         if compat.is_basestring(ignore_patterns):
             ignore_patterns = ignore_patterns.split(",")
 
+        ignored_list = []
         for entry in dirInfoList:
             # Skip ignore patterns
             ignore = False
             for pat in ignore_patterns:
                 if fnmatch(entry["display_name"], pat):
-                    _logger.debug("Ignore {}".format(entry["display_name"]))
+                    ignored_list.append(entry["display_name"])
+                    # _logger.debug("Ignore {}".format(entry["display_name"]))
                     ignore = True
                     break
             if ignore:
@@ -243,6 +258,12 @@ class WsgiDavDirBrowser(BaseMiddleware):
                     entry["str_size"] = content_length
 
             rows.append(entry)
+        if ignored_list:
+            _logger.debug(
+                "Dir browser ignored {} entries: {}".format(
+                    len(ignored_list), ignored_list
+                )
+            )
 
         # sort
         sort = "name"
@@ -253,10 +274,17 @@ class WsgiDavDirBrowser(BaseMiddleware):
                 )
             )
 
-        if "http_authenticator.user_name" in environ:
-            context["user_name"] = (
-                environ.get("http_authenticator.user_name") or "anonymous"
+        if "wsgidav.auth.user_name" in environ:
+            context.update(
+                {
+                    "is_authenticated": True,
+                    "user_name": (environ.get("wsgidav.auth.user_name") or "anonymous"),
+                    "realm": environ.get("wsgidav.auth.realm"),
+                    "user_roles": ", ".join(environ.get("wsgidav.auth.roles") or []),
+                    "user_permissions": ", ".join(
+                        environ.get("wsgidav.auth.permissions") or []
+                    ),
+                }
             )
-            context["realm"] = environ.get("http_authenticator.realm")
 
         return context

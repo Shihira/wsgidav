@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Original PyFileServer (c) 2005 Ho Chun Wei.
 # Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.php
 """
@@ -21,12 +21,14 @@ def main():
 
     config = {
         "provider_mapping": {"/": provider},
-        "user_mapping": {},
+        "http_authenticator": {
+            "domain_controller": None  # None: dc.simple_dc.SimpleDomainController(user_mapping)
+        },
+        "simple_dc": {"user_mapping": {"*": True}},  # anonymous access
         "verbose": 1,
         "enable_loggers": [],
         "property_manager": True,  # True: use property_manager.PropertyManager
         "lock_manager": True,  # True: use lock_manager.LockManager
-        "domain_controller": None,  # None: dc.simple_dc.SimpleDomainController(user_mapping)
     }
     app = WsgiDAVApp(config)
 

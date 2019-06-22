@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Original PyFileServer (c) 2005 Ho Chun Wei.
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license.php
@@ -96,10 +96,10 @@ class WsgiDavDebugFilter(BaseMiddleware):
         # Process URL commands
         if "dump_storage" in environ.get("QUERY_STRING", ""):
             dav = environ.get("wsgidav.provider")
-            if dav.lockManager:
-                dav.lockManager._dump()
-            if dav.propManager:
-                dav.propManager._dump()
+            if dav.lock_manager:
+                dav.lock_manager._dump()
+            if dav.prop_manager:
+                dav.prop_manager._dump()
 
         # Turn on max. debugging for selected litmus tests
         litmusTag = environ.get("HTTP_X_LITMUS", environ.get("HTTP_X_LITMUS_SECOND"))

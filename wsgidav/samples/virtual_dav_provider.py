@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.php
 """
 Sample implementation of a DAV provider that provides a browsable,
@@ -350,7 +350,7 @@ class VirtualResource(DAVCollection):
 
     def get_ref_url(self):
         refPath = "/by_key/%s" % self.data["key"]
-        return compat.quote(self.provider.sharePath + refPath)
+        return compat.quote(self.provider.share_path + refPath)
 
     def get_property_names(self, is_allprop):
         """Return list of supported property names in Clark Notation.
@@ -480,7 +480,7 @@ class VirtualArtifact(_VirtualNonCollection):
 
     def get_ref_url(self):
         refPath = "/by_key/%s/%s" % (self.data["key"], self.name)
-        return compat.quote(self.provider.sharePath + refPath)
+        return compat.quote(self.provider.share_path + refPath)
 
     def get_content(self):
         fileLinks = [
@@ -579,7 +579,7 @@ class VirtualResFile(_VirtualNonCollection):
 
     def get_ref_url(self):
         refPath = "/by_key/%s/%s" % (self.data["key"], os.path.basename(self.file_path))
-        return compat.quote(self.provider.sharePath + refPath)
+        return compat.quote(self.provider.share_path + refPath)
 
     def get_content(self):
         # mime = self.get_content_type()

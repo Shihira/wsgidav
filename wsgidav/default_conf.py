@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Original PyFileServer (c) 2005 Ho Chun Wei.
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license.php
-"""
+r"""
 ::
 
      _      __         _ ___  ___ _   __
@@ -34,18 +34,22 @@ DEFAULT_CONFIG = {
     "mount_path": None,  # Application root, e.g. <mount_path>/<share_name>/<res_path>
     "provider_mapping": {},
     "add_header_MS_Author_Via": True,
-    "unquote_path_info": False,  # See issue #8
-    "re_encode_path_info": None,  # (See issue #73) None: activate on Python 3
+    "hotfixes": {
+        "emulate_win32_lastmod": False,  # True: support Win32LastModifiedTime
+        "re_encode_path_info": None,  # (See issue #73) None: activate on Python 3
+        "unquote_path_info": False,  # See issue #8
+        "win_accept_anonymous_options": False,
+        "winxp_accept_root_share_login": False,  # Was True in v2.4
+    },
     "property_manager": None,  # True: use property_manager.PropertyManager
-    "emulate_win32_lastmod": False,  # True: support Win32LastModifiedTime
     "mutable_live_props": [],
     "lock_manager": True,  # True: use lock_manager.LockManager
     "middleware_stack": [
         WsgiDavDebugFilter,
         ErrorPrinter,
         HTTPAuthenticator,
-        WsgiDavDirBrowser,
-        RequestResolver,
+        WsgiDavDirBrowser,  # configured under dir_browser option (see below)
+        RequestResolver,  # this must be the last middleware item
     ],
     # HTTP Authentication Options
     "http_authenticator": {
@@ -57,8 +61,8 @@ DEFAULT_CONFIG = {
         # Name of a header field that will be accepted as authorized user
         "trusted_auth_header": None,
     },
-    #: Used by SimpleDomainController
-    "user_mapping": {},
+    #: Used by SimpleDomainController only
+    "simple_dc": {"user_mapping": {}},  # NO anonymous access by default
     # Verbose Output
     # 0 - no output
     # 1 - no output (excepting application exceptions)
@@ -72,7 +76,7 @@ DEFAULT_CONFIG = {
     "error_printer": {"catch_all": True},  # False,
     "enable_loggers": [],
     "dir_browser": {
-        # "enable": True,  # Render HTML listing for GET requests on collections
+        "enable": True,  # Render HTML listing for GET requests on collections
         # List of fnmatch patterns:
         "ignore": [
             ".DS_Store",  # macOS folder meta data

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.php
 """
 DAV provider that publishes a Mercurial repository.
@@ -140,7 +140,7 @@ class HgResource(_DAVResource):
         return os.path.join(self.provider.repo.root, *parts)
 
     def _commit(self, message):
-        user = self.environ.get("http_authenticator.user_name") or "Anonymous"
+        user = self.environ.get("wsgidav.auth.user_name") or "Anonymous"
         commands.commit(
             self.provider.ui,
             self.provider.repo,

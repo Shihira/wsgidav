@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Original PyFileServer (c) 2005 Ho Chun Wei.
 # Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.php
 """
@@ -46,7 +46,7 @@ To run it with other WSGI web servers, you can::
 
 where ``publish_app`` is the WSGI application to be run, it will be called with
 ``publish_app(environ, start_response)`` for each incoming request, as described in
-WSGI <http://www.python.org/peps/pep-0333.html>
+`WSGI <http://www.python.org/peps/pep-3333.html>`_
 
 Note: if you are using the paster development server (from Paste <http://pythonpaste.org>), you
 can copy ``ext_wsgi_server.py`` to ``<Paste-installation>/paste/servers`` and use this server to
@@ -354,7 +354,7 @@ class ExtServer(socketserver.ThreadingMixIn, BaseHTTPServer.HTTPServer):
             self.server.stop_request = True
 
         if not hasattr(ExtHandler, "do_SHUTDOWN"):
-            setattr(ExtHandler, "do_SHUTDOWN", _shutdownHandler)
+            ExtHandler.do_SHUTDOWN = _shutdownHandler
 
         # Send request, so socket is unblocked
         (host, port) = self.server_address

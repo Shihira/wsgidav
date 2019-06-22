@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Original PyFileServer (c) 2005 Ho Chun Wei.
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license.php
@@ -50,9 +50,16 @@ WSGI middleware for resolving Realm and Paths for the WsgiDAV
 application.
 
 Usage::
+   It *must* be configured as the last item on `middleware_stack` list.
 
    from wsgidav.request_resolver import RequestResolver
-   WSGIApp = RequestResolver(InternalWSGIApp)
+   config = {
+        ...,
+        'middleware_stack': [
+            ...,
+            RequestResolver,
+        ],
+    }
 
 The RequestResolver resolves the requested URL to the following values
 placed in the environ dictionary. First it resolves the corresponding
@@ -176,7 +183,7 @@ class RequestResolver(BaseMiddleware):
             if (
                 provider is None
                 or provider.is_readonly()
-                or provider.lockManager is None
+                or provider.lock_manager is None
             ):
                 dav_compliance_level = "1"
 

@@ -2,7 +2,7 @@
 #
 # 1. Rename this file to `wsgidav.yaml`
 # 2. Adjust settings as appropriate
-# 3. Run `wsgidav` from the same directory or pass file name with `--config` option.
+# 3. Run `wsgidav` from the same directory or pass file path with `--config` option.
 #
 # See http://wsgidav.readthedocs.io/en/latest/user_guide_configure.html
 #
@@ -10,7 +10,12 @@
 # SERVER OPTIONS
 
 server: "cheroot"
-server_args: {}
+
+# Server specific arguments, for example
+#   - cheroot: https://cheroot.cherrypy.org/en/latest/pkg/cheroot.wsgi.html#cheroot.wsgi.Server
+server_args:
+    # File Explorer needs lot of threads (see issue #149):
+    numthreads: 256
 
 host: 0.0.0.0
 port: 8080
@@ -25,10 +30,26 @@ block_size: 8192
 #: Add the MS-Author-Via Response Header to OPTIONS command to allow editing
 #: with Microsoft Office (default: true)
 add_header_MS_Author_Via: true
-#: See issue #8
-unquote_path_info: false
-#: (See issue #73) Set null to activate on Python 3 only
-re_encode_path_info: null
+
+hotfixes:
+    winxp_accept_root_share_login: false
+    win_accept_anonymous_options: false
+    #: See issue #8
+    unquote_path_info: false
+    #: (See issue #73) Set null to activate on Python 3 only
+    re_encode_path_info: null
+    # Handle Microsoft's Win32LastModifiedTime property.
+    # This is useful only in the case when you copy files from a Windows
+    # client into a WebDAV share. Windows sends the "last modified" time of
+    # the file in a Microsoft extended property called "Win32LastModifiedTime"
+    # instead of the standard WebDAV property "getlastmodified". So without
+    # this config option set to "True", the "last modified" time of the copied
+    # file will be "now" instead of its original value.
+    # The proper solution for dealing with the Windows WebDAV client is to use
+    # a persistent property manager. This setting is merely a work-around.
+    # NOTE: Works with Win10, can't work with Win7. Other versions untested.
+    emulate_win32_lastmod: true
+
 
 # ----------------------------------------------------------------------------
 # SSL Support
@@ -39,7 +60,7 @@ re_encode_path_info: null
 
 # ssl_certificate: "wsgidav/server/sample_bogo_server.crt"
 # ssl_private_key: "wsgidav/server/sample_bogo_server.key"
-# ssl_certificate_chain: None
+# ssl_certificate_chain: null
 
 #: Cheroot server supports 'builtin' and 'pyopenssl' (default: 'builtin')
 # ssl_adapter: "pyopenssl"
@@ -52,7 +73,7 @@ middleware_stack:
     - wsgidav.error_printer.ErrorPrinter
     - wsgidav.http_authenticator.HTTPAuthenticator
     - wsgidav.dir_browser.WsgiDavDirBrowser
-    - wsgidav.request_resolver.RequestResolver
+    - wsgidav.request_resolver.RequestResolver  # this must be the last middleware item
 
 # ==============================================================================
 # SHARES
@@ -61,24 +82,34 @@ middleware_stack:
 #: e.g. <mount_path>/<share_name>/<res_path>
 mount_path: null
 
+#: Route share paths to DAVProvider instances
+#: By default a writable `FilesystemProvider` is assumed, but can be forced
+#: to read-only.
+#: Note that a DomainController may still restrict access completely or prevent
+#: editing depending on authentication.
+#: The following syntax variants are supported:
+#:     <mount_path>: <folder_path>
+#: or
+#:     <mount_path>: { "root": <folder_path>, "readonly": <bool> }
+#: or
+#:     <mount_path>: { "provider": <class_path>, "args": [<pos-args>, ...] }
+
 provider_mapping:
-    "/share1": "/path/to/share1"
-    "/share2":
-        - "/path/to/share2"
-        - true  # read-only
+    "/": "/path/to/share1"
+    "/pub":
+        root: "/path/to/share2"
+        readonly: true
+    "/share3":
+        provider: path.to.CustomDAVProviderClass
+        args: ["/path/to/share3", "second_arg"]
+        kwargs: {"another_arg": 42}
 
 
 # ==============================================================================
 # AUTHENTICATION
 http_authenticator:
-    #: Domain controller that is used to resolve realms and authorization.
-    #: Default null: wsgidav.dc.simple_dc.SimpleDomainController,
-    #: which uses the `user_mapping` option below.
-    #: (See http://wsgidav.readthedocs.io/en/latest/user_guide_configure.html
-    #: for an example of NT domain controller, etc.)
-    domain_controller: null
     #: Allow basic authentication
-    accept_basic: false
+    accept_basic: true
     #: Allow digest authentication
     accept_digest: true
     #: true (default digest) or false (default basic)
@@ -86,30 +117,43 @@ http_authenticator:
     #: Header field that will be accepted as authorized user.
     #: Including quotes, for example: trusted_auth_header = "REMOTE_USER"
     trusted_auth_header: null
-    #: NTDomainController only:
+    #: Domain controller that is used to resolve realms and authorization.
+    #: Default null: which uses SimpleDomainController and the
+    #: `simple_dc.user_mapping` option below.
+    #: (See http://wsgidav.readthedocs.io/en/latest/user_guide_configure.html
+    #: for details.)
+    domain_controller: null
+    # domain_controller: wsgidav.dc.simple_dc.SimpleDomainController
+    # domain_controller: wsgidav.dc.pam_dc.PAMDomainController
+    # domain_controller: wsgidav.dc.nt_dc.NTDomainController
+
+
+# Additional options for SimpleDomainController only:
+simple_dc:
+    # Access control per share.
+    # These routes must match the provider mapping.
+    # NOTE: Provider routes without a matching entry here, are inaccessible.
+    user_mapping:
+        "*":  # default (used for all shares that are not explicitly listed)
+            "user1":
+                password: "abc123"
+                # Optional: passed to downstream middleware as environ["wsgidav.auth.roles"]
+                roles: ["editor"]
+            "user2":
+                password: "def456"
+                password: "qwerty"
+        "/pub": true  # Pass true to allow anonymous access
+
+# Additional options for NTDomainController only:
+nt_dc:
     preset_domain: null
     preset_server: null
 
-# Access control per share, used by the default SimpleDomainController.
-# These routes must match the provider mapping.
-# NOTE: Provider routes without a matching entry here, are open for
-# anonymous access!
-
-user_mapping:
-    "/share1":
-        "user1":
-            password: "abc123"
-            description: "User 1 for Share 1"
-            roles: []
-    "/share2":
-        "user1":
-            password: "def456"
-            description: "User 1 for Share 2"
-            roles: []
-        "user2":
-            password: "qwerty"
-            description: "User 2 for Share 2"
-            roles: []
+# Additional options for PAMDomainController only:
+pam_dc:
+    service: "login"
+    encoding: "utf-8"
+    resetcreds: true
 
 
 # ==============================================================================
@@ -125,7 +169,8 @@ logger_format: "%(asctime)s.%(msecs)03d - <%(thread)05d> %(name)-27s %(levelname
 logger_date_format: "%H:%M:%S"
 
 #: Let ErrorPrinter middleware catch all exceptions to return as 500 Internal Error
-catch_all: false
+error_printer:
+    catch_all: false
 
 # Enable specific module loggers
 # E.g. ["lock_manager", "property_manager", "http_authenticator", ...]
@@ -144,6 +189,7 @@ debug_litmus: []
 # WsgiDavDirBrowser
 
 dir_browser:
+    enable: true
     #: List of fnmatch patterns that will be hidden in the directory listing
     ignore:
         - ".DS_Store"  # macOS folder meta data
@@ -155,6 +201,7 @@ dir_browser:
     response_trailer: true
     #: Display the name and realm of the authenticated user (or 'anomymous')
     show_user: true
+    show_logout: true
     #: Send <dm:mount> response if request URL contains '?davmount'
     #: Also add a respective link at the top of the listing
     #: (See https://tools.ietf.org/html/rfc4709)
@@ -186,18 +233,6 @@ mutable_live_props:
     # Enable to allow clients to use e.g. the touch or cp / rsync commands with the
     # preserve-timestamp flags in a mounted DAV share (may be RFC4918 incompliant)
     - "{DAV:}getlastmodified"
-
-# Handle Microsoft's Win32LastModifiedTime property.
-# This is useful only in the case when you copy files from a Windows
-# client into a WebDAV share. Windows sends the "last modified" time of
-# the file in a Microsoft extended property called "Win32LastModifiedTime"
-# instead of the standard WebDAV property "getlastmodified". So without
-# this config option set to "True", the "last modified" time of the copied
-# file will be "now" instead of its original value.
-# The proper solution for dealing with the Windows WebDAV client is to use
-# a persistent property manager. This setting is merely a work-around.
-# NOTE: Works with Win10, can't work with Win7. Other versions untested.
-emulate_win32_lastmod: true
 
 # ----------------------------------------------------------------------------
 # Lock Manager

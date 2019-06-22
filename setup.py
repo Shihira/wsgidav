@@ -79,7 +79,7 @@ for cmd in ["bdist_msi"]:
 #   2. users may prefer another server
 #   3. there may already cherrypy versions installed
 
-install_requires = ["defusedxml", "jsmin", "Jinja2", "PyYAML"]
+install_requires = ["defusedxml", "jsmin", "six", "Jinja2", "PyYAML"]
 setup_requires = install_requires
 tests_require = []
 
@@ -145,7 +145,7 @@ if use_cx_freeze:
                 icon="doc/logo.ico",
                 shortcutName="WsgiDAV",
                 # requires cx_Freeze PR#94:
-                # copyright="(c) 2009-2018 Martin Wendt",
+                # copyright="(c) 2009-2019 Martin Wendt",
                 # trademarks="...",
             )
         ]
@@ -193,7 +193,7 @@ build_exe_options = {
         # "wsgidav.dc.nt_dc",
     ],
     "excludes": ["tkinter"],
-    "constants": "BUILD_COPYRIGHT='(c) 2009-2018 Martin Wendt'",
+    "constants": "BUILD_COPYRIGHT='(c) 2009-2019 Martin Wendt'",
     # "init_script": "Console",
     "include_msvcr": True,
 }
@@ -255,5 +255,6 @@ setup(
     cmdclass={"test": ToxCommand, "sphinx": SphinxCommand},
     entry_points={"console_scripts": ["wsgidav = wsgidav.server.server_cli:run"]},
     options={"build_exe": build_exe_options, "bdist_msi": bdist_msi_options},
+    # Used by cx_Freeze:
     executables=executables,
 )

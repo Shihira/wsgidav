@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Original PyFileServer (c) 2005 Ho Chun Wei.
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license.php
@@ -61,15 +61,15 @@ class RequestServer(object):
         # _logger.debug("RequestServer: __init__")
 
         self._possible_methods = ["OPTIONS", "HEAD", "GET", "PROPFIND"]
-        # if self._davProvider.propManager is not None:
+        # if self._davProvider.prop_manager is not None:
         #     self._possible_methods.extend( [ "PROPFIND" ] )
         if not self._davProvider.is_readonly():
             self._possible_methods.extend(
                 ["PUT", "DELETE", "COPY", "MOVE", "MKCOL", "PROPPATCH", "POST"]
             )
-            # if self._davProvider.propManager is not None:
+            # if self._davProvider.prop_manager is not None:
             #     self._possible_methods.extend( [ "PROPPATCH" ] )
-            if self._davProvider.lockManager is not None:
+            if self._davProvider.lock_manager is not None:
                 self._possible_methods.extend(["LOCK", "UNLOCK"])
 
     def __del__(self):
@@ -81,12 +81,12 @@ class RequestServer(object):
         provider = self._davProvider
         # TODO: allow anonymous somehow: this should run, even if http_authenticator middleware
         # is not installed
-        #        assert "http_authenticator.user_name" in environ
-        if "http_authenticator.user_name" not in environ:
-            _logger.warning("Missing 'http_authenticator.user_name' in environ")
+        #        assert "wsgidav.auth.user_name" in environ
+        if "wsgidav.auth.user_name" not in environ:
+            _logger.warning("Missing 'wsgidav.auth.user_name' in environ")
 
         environ["wsgidav.user_name"] = environ.get(
-            "http_authenticator.user_name", "anonymous"
+            "wsgidav.auth.user_name", "anonymous"
         )
         requestmethod = environ["REQUEST_METHOD"]
 
@@ -197,7 +197,7 @@ class RequestServer(object):
 
         If depth=='infinity', we also raise when child resources are locked.
         """
-        lockMan = self._davProvider.lockManager
+        lockMan = self._davProvider.lock_manager
         if lockMan is None or res is None:
             return True
 
@@ -243,7 +243,7 @@ class RequestServer(object):
         last_modified = -1  # nonvalid modified time
         entitytag = "[]"  # Non-valid entity tag
         if res.get_last_modified() is not None:
-            last_modified = res.get_last_modified()
+            last_modified = int(res.get_last_modified())
         if res.get_etag() is not None:
             entitytag = res.get_etag()
 
@@ -264,7 +264,7 @@ class RequestServer(object):
         #            isnewfile = not provider.exists(mappedpath)
 
         refUrl = res.get_ref_url()
-        lockMan = self._davProvider.lockManager
+        lockMan = self._davProvider.lock_manager
         locktokenlist = []
         if lockMan:
             lockList = lockMan.get_indirect_url_lock_list(
@@ -712,9 +712,9 @@ class RequestServer(object):
         """Get the data from a non-chunked transfer."""
         if content_length == 0:
             # TODO: review this
-            # XP and Vista MiniRedir submit PUT with Content-Length 0,
+            # Windows MiniRedir submit PUT with Content-Length 0,
             # before LOCK and the real PUT. So we have to accept this.
-            _logger.info("PUT: Content-Length == 0. Creating empty file...")
+            _logger.debug("PUT: Content-Length == 0. Creating empty file...")
 
         #        elif content_length < 0:
         #            # TODO: review this
@@ -947,12 +947,12 @@ class RequestServer(object):
             self._fail(
                 HTTP_BAD_GATEWAY, "Source and destination must have the same host name."
             )
-        elif not destPath.startswith(provider.mountPath + provider.sharePath):
+        elif not destPath.startswith(provider.mount_path + provider.share_path):
             # Inter-realm copying not supported, since its not possible to
             # authentication-wise
             self._fail(HTTP_BAD_GATEWAY, "Inter-realm copy/move is not supported.")
 
-        destPath = destPath[len(provider.mountPath + provider.sharePath) :]
+        destPath = destPath[len(provider.mount_path + provider.share_path) :]
         assert destPath.startswith("/")
 
         # destPath is now relative to current mount/share starting with '/'
@@ -1179,7 +1179,7 @@ class RequestServer(object):
         path = environ["PATH_INFO"]
         provider = self._davProvider
         res = provider.get_resource_inst(path, environ)
-        lockMan = provider.lockManager
+        lockMan = provider.lock_manager
 
         if lockMan is None:
             # http://www.webdav.org/specs/rfc4918.html#rfc.section.6.3
@@ -1381,7 +1381,7 @@ class RequestServer(object):
         provider = self._davProvider
         res = self._davProvider.get_resource_inst(path, environ)
 
-        lockMan = provider.lockManager
+        lockMan = provider.lock_manager
         if lockMan is None:
             self._fail(HTTP_NOT_IMPLEMENTED, "This share does not support locking.")
         elif util.get_content_length(environ) != 0:
@@ -1425,7 +1425,7 @@ class RequestServer(object):
         res = provider.get_resource_inst(path, environ)
 
         dav_compliance_level = "1,2"
-        if provider is None or provider.is_readonly() or provider.lockManager is None:
+        if provider is None or provider.is_readonly() or provider.lock_manager is None:
             dav_compliance_level = "1"
 
         headers = [
@@ -1456,27 +1456,27 @@ class RequestServer(object):
         if res and res.is_collection:
             # Existing collection
             allow.extend(["HEAD", "GET", "PROPFIND"])
-            # if provider.propManager is not None:
+            # if provider.prop_manager is not None:
             #     allow.extend( [ "PROPFIND" ] )
             if not provider.is_readonly():
                 allow.extend(["DELETE", "COPY", "MOVE", "PROPPATCH"])
-                # if provider.propManager is not None:
+                # if provider.prop_manager is not None:
                 #     allow.extend( [ "PROPPATCH" ] )
-                if provider.lockManager is not None:
+                if provider.lock_manager is not None:
                     allow.extend(["LOCK", "UNLOCK"])
         elif res:
             # Existing resource
             allow.extend(["HEAD", "GET", "PROPFIND"])
-            # if provider.propManager is not None:
+            # if provider.prop_manager is not None:
             #     allow.extend( [ "PROPFIND" ] )
             if not provider.is_readonly():
                 allow.extend(["PUT", "DELETE", "COPY", "MOVE", "PROPPATCH"])
-                # if provider.propManager is not None:
+                # if provider.prop_manager is not None:
                 #     allow.extend( [ "PROPPATCH" ] )
-                if provider.lockManager is not None:
+                if provider.lock_manager is not None:
                     allow.extend(["LOCK", "UNLOCK"])
             if res.support_ranges():
-                headers.append(("Allow-Ranges", "bytes"))
+                headers.append(("Accept-Ranges", "bytes"))
         elif provider.is_collection(util.get_uri_parent(path), environ):
             # A new resource below an existing collection
             # TODO: should we allow LOCK here? I think it is allowed to lock an
@@ -1525,8 +1525,8 @@ class RequestServer(object):
             self._fail(
                 HTTP_FORBIDDEN,
                 "Directory browsing is not enabled."
-                "(WsgiDavDirBrowser middleware may be enabled using "
-                "the dir_browser option.)",
+                "(to enable it put WsgiDavDirBrowser into middleware_stack"
+                "option and set dir_browser -> enabled = True option.)",
             )
 
         query = parse_qs(environ["QUERY_STRING"])
@@ -1593,7 +1593,8 @@ class RequestServer(object):
             # Try as http-date first (Return None, if invalid date string)
             secstime = util.parse_time_string(ifrange)
             if secstime:
-                if last_modified != secstime:
+                # cast to integer, as last_modified may be a floating point number
+                if int(last_modified) != secstime:
                     doignoreranges = True
             else:
                 # Use as entity tag
@@ -1635,6 +1636,9 @@ class RequestServer(object):
         if res.support_etag():
             response_headers.append(("ETag", '"{}"'.format(entitytag)))
 
+        if res.support_ranges():
+            response_headers.append(("Accept-Ranges", "bytes"))
+
         if "response_headers" in environ["wsgidav.config"]:
             customHeaders = environ["wsgidav.config"]["response_headers"]
             for header, value in customHeaders:
@@ -1666,17 +1670,24 @@ class RequestServer(object):
             fileobj.seek(range_start)
 
         contentlengthremaining = range_length
-        while 1:
-            if contentlengthremaining < 0 or contentlengthremaining > self.block_size:
-                readbuffer = fileobj.read(self.block_size)
-            else:
-                readbuffer = fileobj.read(contentlengthremaining)
-            assert compat.is_bytes(readbuffer)
-            yield readbuffer
-            contentlengthremaining -= len(readbuffer)
-            if len(readbuffer) == 0 or contentlengthremaining == 0:
-                break
-        fileobj.close()
+        try:
+            while 1:
+                if (
+                    contentlengthremaining < 0
+                    or contentlengthremaining > self.block_size
+                ):
+                    readbuffer = fileobj.read(self.block_size)
+                else:
+                    readbuffer = fileobj.read(contentlengthremaining)
+                assert compat.is_bytes(readbuffer)
+                yield readbuffer
+                contentlengthremaining -= len(readbuffer)
+                if len(readbuffer) == 0 or contentlengthremaining == 0:
+                    break
+        finally:
+            # yield readbuffer MAY fail with a GeneratorExit error
+            # we still need to close the file
+            fileobj.close()
         return
 
 

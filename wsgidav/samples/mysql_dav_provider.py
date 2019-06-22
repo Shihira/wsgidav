@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Original PyFileServer (c) 2005 Ho Chun Wei.
 # Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.php
 """
@@ -11,7 +11,7 @@ classes ``MySQLBrowserProvider``.
 
 Usage::
 
-    (see doc/annotated_wsgidav.conf)
+    (see doc/sample_wsgidav.conf)
     MySQLBrowserProvider(host, user, passwd, db)
 
     host - host of database server

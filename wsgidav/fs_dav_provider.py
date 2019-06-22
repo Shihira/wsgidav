@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Original PyFileServer (c) 2005 Ho Chun Wei.
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license.php
@@ -120,7 +120,7 @@ class FileResource(DAVNonCollection):
         shutil.copy2(self._file_path, fpDest)
         # (Live properties are copied by copy2 or copystat)
         # Copy dead properties
-        propMan = self.provider.propManager
+        propMan = self.provider.prop_manager
         if propMan:
             destRes = self.provider.get_resource_inst(dest_path, self.environ)
             if is_move:
@@ -150,9 +150,9 @@ class FileResource(DAVNonCollection):
         shutil.move(self._file_path, fpDest)
         # (Live properties are copied by copy2 or copystat)
         # Move dead properties
-        if self.provider.propManager:
+        if self.provider.prop_manager:
             destRes = self.provider.get_resource_inst(dest_path, self.environ)
-            self.provider.propManager.move_properties(
+            self.provider.prop_manager.move_properties(
                 self.get_ref_url(),
                 destRes.get_ref_url(),
                 with_children=True,
@@ -304,7 +304,7 @@ class FolderResource(DAVCollection):
             _logger.exception("Could not copy folder stats: {}".format(self._file_path))
         # (Live properties are copied by copy2 or copystat)
         # Copy dead properties
-        propMan = self.provider.propManager
+        propMan = self.provider.prop_manager
         if propMan:
             destRes = self.provider.get_resource_inst(dest_path, self.environ)
             if is_move:
@@ -334,9 +334,9 @@ class FolderResource(DAVCollection):
         shutil.move(self._file_path, fpDest)
         # (Live properties are copied by copy2 or copystat)
         # Move dead properties
-        if self.provider.propManager:
+        if self.provider.prop_manager:
             destRes = self.provider.get_resource_inst(dest_path, self.environ)
-            self.provider.propManager.move_properties(
+            self.provider.prop_manager.move_properties(
                 self.get_ref_url(),
                 destRes.get_ref_url(),
                 with_children=True,

@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/m ar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/m ar10/wsgidav
 # Original PyFileServer (c) 2005 Ho Chun Wei.
 # Licensed under the MIT license:
 # http://www.opensource.org/licenses/mit-license.php
@@ -23,7 +23,6 @@ from wsgidav.dav_error import (
 )
 from wsgidav.xml_tools import etree, is_etree_element, make_sub_element, xml_to_bytes
 
-import base64
 import calendar
 import collections
 import logging
@@ -277,7 +276,11 @@ def dynamic_import_class(name):
     import importlib
 
     module_name, class_name = name.rsplit(".", 1)
-    module = importlib.import_module(module_name)
+    try:
+        module = importlib.import_module(module_name)
+    except Exception as e:
+        _logger.exception("Dynamic import of {!r} failed: {}".format(name, e))
+        raise
     the_class = getattr(module, class_name)
     return the_class
 
@@ -575,7 +578,7 @@ def fail(value, context_info=None, src_exception=None, err_condition=None):
         e = as_DAVError(value)
     else:
         e = DAVError(value, context_info, src_exception, err_condition)
-    _logger.error("Raising DAVError {}".format(e.get_user_info()))
+    _logger.debug("Raising DAVError {}".format(e.get_user_info()))
     raise e
 
 
@@ -669,7 +672,7 @@ def is_equal_or_child_uri(parentUri, childUri):
 
 def make_complete_url(environ, localUri=None):
     """URL reconstruction according to PEP 333.
-    @see http://www.python.org/dev/peps/pep-0333/#id33
+    @see https://www.python.org/dev/peps/pep-3333/#url-reconstruction
     """
     url = environ["wsgi.url_scheme"] + "://"
 
@@ -946,7 +949,7 @@ def calc_hexdigest(s):
 def calc_base64(s):
     """Return base64 encoded binarystring."""
     s = compat.to_bytes(s)
-    s = base64.encodestring(s).strip()  # return bytestring
+    s = compat.base64_encodebytes(s).strip()  # return bytestring
     return compat.to_native(s)
 
 
@@ -998,8 +1001,10 @@ def get_etag(file_path):
 # ========================================================================
 
 # Range Specifiers
-reByteRangeSpecifier = re.compile("(([0-9]+)\-([0-9]*))")
-reSuffixByteRangeSpecifier = re.compile("(\-([0-9]+))")
+reByteRangeSpecifier = re.compile("(([0-9]+)-([0-9]*))")
+reSuffixByteRangeSpecifier = re.compile("(-([0-9]+))")
+# reByteRangeSpecifier = re.compile("(([0-9]+)\-([0-9]*))")
+# reSuffixByteRangeSpecifier = re.compile("(\-([0-9]+))")
 
 
 def obtain_content_ranges(rangetext, filesize):
@@ -1169,7 +1174,7 @@ def evaluate_http_conditionals(dav_res, last_modified, entitytag, environ):
 
     if "HTTP_IF_UNMODIFIED_SINCE" in environ and dav_res.support_modified():
         ifunmodtime = parse_time_string(environ["HTTP_IF_UNMODIFIED_SINCE"])
-        if ifunmodtime and ifunmodtime <= last_modified:
+        if ifunmodtime and ifunmodtime < last_modified:
             raise DAVError(
                 HTTP_PRECONDITION_FAILED, "If-Unmodified-Since header condition failed"
             )

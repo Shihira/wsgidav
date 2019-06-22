@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# (c) 2009-2018 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
+# (c) 2009-2019 Martin Wendt and contributors; see WsgiDAV https://github.com/mar10/wsgidav
 # Licensed under the MIT license: http://www.opensource.org/licenses/mit-license.php
 """
 Tools that make it easier to implement custom WsgiDAV providers.
@@ -126,7 +126,7 @@ class VirtualTextResource(_VirtualNonCollection):
 
     #    def get_ref_url(self):
     #        refPath = "/by_key/%s/%s" % (self._data["key"], self.name)
-    #        return compat.quote(self.provider.sharePath + refPath)
+    #        return compat.quote(self.provider.share_path + refPath)
 
     def get_content(self):
         return compat.StringIO(self.content)
@@ -172,7 +172,7 @@ class FileResource(_VirtualNonCollection):
 
     #    def get_ref_url(self):
     #        refPath = "/by_key/%s/%s" % (self._data["key"], os.path.basename(self.file_path))
-    #        return compat.quote(self.provider.sharePath + refPath)
+    #        return compat.quote(self.provider.share_path + refPath)
 
     def get_content(self):
         # mime = self.get_content_type()

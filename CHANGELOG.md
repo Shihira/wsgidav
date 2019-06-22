@@ -1,6 +1,13 @@
 # Changelog
 
-## 3.0.0 / Unreleased
+## 3.0.1 / Unreleased
+(Thanks to Steffen Deusch for most of the fixes.)
+- Fix #152: "Allow-Ranges: bytes" is now correct "Accept-Ranges: bytes" header
+- Merge #155: last_modified is now correctly cast to int when comparing conditional requests
+- Merge #156: the file object returned by get_content (DAVNonCollection) is now correctly being closed when a client disconnects unexpectedly
+- #149: Improve performance for Windows File Explorer by incrementing the default thread count for cheroot
+
+## 3.0.0 / 2019-03-04
 
 This release contains **BREAKING CHANGES!**
 
@@ -16,11 +23,15 @@ This release contains **BREAKING CHANGES!**
   - Refactor middleware stack
     - RequestResolver and WsgiDavDirBrowser are now simple members of `middleware_stack`
       and not specially treated
-    - Remove `middleware.isSuitable()` because we don't want to enforce
-      a specific base class for middleware (introduced with #12)
     - `middleware_stack` entries can also be strings or dicts that are
     evaluated to import and instantiate middleware classes. This allows to
     define and configure external middleware in YAML and JSON config files.
+  - provider_mapping option now supports configuration of custom providers
+  - Windows XP (Microsoft-WebDAV-MiniRedir/5.1.2600) had a bug
+    when accessing a share '/dav/': XP sometimes sends digests for '/'.
+    In v.2.4 a hotfix was also accept '/' instead of the real share.
+    This is now disabled by default, but can be re-enabled with
+    hotfixes.winxp_accept_root_share_login: true.
 - Refactor code base:
   - **Rename methods** according to PEP 8, e.g.
     `provider.getResourceInst()` => `provider.get_resource_inst()`.
@@ -30,8 +41,23 @@ This release contains **BREAKING CHANGES!**
   - Enforce [Black code style](https://github.com/ambv/black)
   - Move some modules to separate packages
   - Use utf-8 directive in source files (-*- coding: utf-8 -*-)
-- Refactor domain_controller:
-  - ...
+- Refactor domain_controller and authentication:
+  - Renamed environ["http_authenticator.realm"], environ["http_authenticator.user_name"]
+    => environ["wsgidav.auth.realm"], environ["wsgidav.auth.user_name"]
+  - DC may define environ["wsgidav.auth.roles"] and environ["wsgidav.auth.permissions"]
+  - A common base class simplifies implementation of custom DCs.
+  - New [PAMDomainController](https://en.wikipedia.org/wiki/Pluggable_authentication_module)
+    allows to authenticate system users on Linux and macOS, for example.
+  - Digest hash generation is now delegated to DomainControllers. This allows
+    to implement DomainControllers that support digest access authentication
+    even if plain-text passwords are not accessible, but stored hashes are.
+  - Every domain controller now has a config section of its own. E.g.
+    the `user_mapping` option for `SimpleDomainController` was moved to
+    `simple_dc.user_mapping`.
+- `SimpleDomainController` no longer allows anonymous access by default.
+  It is now required to pass `simple_dc.user_mapping: "share1": True`.
+  Also a new pseudo-share `"*"` can be used to define defaults.
+  A new command line option `--auth` allows quick-configuration of DCs
 - Refactor WsgiDirBrowser:
   - Use Jinja2 and load static assets through own WsgiDAV provider
   - Move to `wsgidav.dir_browser` package
@@ -42,6 +68,7 @@ This release contains **BREAKING CHANGES!**
   - Includes NTDomainController
 - #112: Added limited support for Microsoft's Win32LastModified property.
 - Fix #123: HEAD request on DirBrowser folder
+- Fix #141: issue when 'sys.stdout' is none
 
 
 ## 2.4.1 / 2018-06-16
