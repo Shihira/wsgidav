@@ -1,0 +1,231 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Home</title>
+    <style>
+      html, body {
+        font-size: 15px;
+        margin: 0px;
+        padding: 0px;
+      }
+
+      .message {
+        border-bottom: #999 1px solid;
+        padding-top: 5px;
+        padding-bottom: 5px;
+        display: flex;
+        flex-direction: row;
+      }
+
+      .message-body {
+        font-family: monospace;
+        line-height: 18px;
+        white-space: pre;
+        overflow: auto;
+      }
+
+      .message-prefix {
+        width: 30px;
+        padding-left: 10px;
+        padding-right: 10px;
+        font-family: sans-serif;
+        font-weight: bold;
+        font-size: 12px;
+        text-align: right;
+        vertical-align: top;
+        line-height: 18px;
+        flex-shrink: 0;
+      }
+
+      .message-type-open {
+        background: #d0ffd4;
+      }
+
+      .message-type-message {
+        background: #fffbd9;
+      }
+
+      .message-type-send {
+        background: #d9f7ff;
+      }
+
+      .message-type-close {
+        background: #eeeeee;
+      }
+
+      #stdin {
+        border: 0px;
+        background: none;
+        display: block;
+        margin: 0px;
+        padding: 0px;
+      }
+    </style>
+  </head>
+  <script src="https://cdn.staticfile.org/jquery/3.3.1/jquery.min.js"></script>
+  <script src="/Pages/assets/utils.js"></script>
+  <body>
+    <div id="container">
+
+      <div class="message message-type-send">
+        <span class="message-prefix" style="line-height: 24px;">λ</span>
+        <input type="input" id="stdin" style="flex-grow: 1;"/>
+        <button style="margin-right: 10px;" onclick="ws.close()">Reset</button>
+      </div>
+
+    </div>
+  
+    <script>
+var currentMessage = "";
+var currentMessageType = "";
+
+const regexLineNum = new RegExp("^\\s*\\d+\\.?\\s+", "m");
+const regexUrl = new RegExp("(?!mailto:)(?:(?:http|https|ftp)://)(?:\\S+(?::\\S*)?@)?(?:(?:(?:[1-9]\\d?|1\\d\\d|2[01]\\d|22[0-3])(?:\\.(?:1?\\d{1,2}|2[0-4]\\d|25[0-5])){2}(?:\\.(?:[0-9]\\d?|1\\d\\d|2[0-4]\\d|25[0-4]))|(?:(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)(?:\\.(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)*(?:\\.(?:[a-z\\u00a1-\\uffff]{2,})))|localhost)(?::\\d{2,5})?(?:(/|\\?|#)[^\\s]*)?", "i");
+const regexClear = new RegExp("^=====CLEAR=====\\n", "m");
+
+function parseText(text) {
+  var div = $("<div></div>");
+  var curtext = text;
+
+  var getLen = function(x) { return x ? x.length : 0; }
+  var doLineNumParse = getLen(curtext.match(/\n/g)) == getLen(curtext.match(/\n\s*\d/g)) + 1;
+
+  while(curtext) {
+    var matches = [
+      doLineNumParse ? curtext.match(regexLineNum) : null,
+      curtext.match(regexUrl),
+      curtext.match(regexClear),
+    ];
+
+    var minIndex = Number.MAX_VALUE;
+    var minIndexLen = 0;
+    var minMatch = -1;
+
+    for (var i = 0; i < matches.length; ++i) {
+      if (!matches[i]) continue;
+      if (matches[i].index < minIndex) {
+        minMatch = i;
+        minIndex = matches[i].index;
+        minIndexLen = matches[i][0].length;
+      }
+    }
+
+    var plainSpan = curtext.substr(0, minIndex);
+    div.append($("<span></span>").text(plainSpan));
+
+    // Line Num
+    if (minMatch == 0) {
+      var span = curtext.substr(minIndex, minIndexLen);
+      var digitMatch = span.match(/\d+/);
+      div.append($('<span></span>')
+        .text(span.substr(0, digitMatch.index)));
+      div.append($('<a href="javascript:void(0)" onclick="useAsInput($(this).text())"></a>')
+        .text(span.substr(digitMatch.index, digitMatch[0].length)));
+      div.append($('<span></span>')
+        .text(span.substr(digitMatch.index + digitMatch[0].length)));
+    }
+
+    // Url
+    if (minMatch == 1) {
+      var span = curtext.substr(minIndex, minIndexLen);
+      div.append($('<a href="'+span+'"></a>').text(span));
+    }
+
+    // Clear
+    if (minMatch == 2) {
+      div.html("");
+      currentMessage = curtext.substr(minIndex + minIndexLen);
+    }
+
+    curtext = curtext.substr(minIndex + minIndexLen);
+  }
+  return div;
+}
+
+function submitMessage(msgType, msg) {
+  var doc = document.documentElement;
+  var gotoBottom = (doc.scrollHeight - (doc.scrollTop + doc.clientHeight)) < 20;
+
+  if (currentMessageType != msgType) {
+    // Clean Up
+    $(".current-message .message-body").html(parseText(currentMessage));
+    $(".current-message").removeClass("current-message");
+    currentMessage = "";
+    currentMessageType = "";
+
+    currentMessageType = msgType;
+
+    $("#container .message:last").before(
+      '<div class="message current-message">' +
+      '  <div class="message-prefix"></div>' +
+      '  <div class="message-body"></div>' +
+      '<div>');
+    $(".current-message").addClass("message-type-" + msgType);
+
+    $(".current-message .message-prefix").text({
+      "open": "open",
+      "close": "close",
+      "send": "<<<",
+      "message": ">>>",
+    }[msgType]);
+  }
+
+  currentMessage += msg;
+  $(".current-message .message-body").html(parseText(currentMessage));
+
+  if (gotoBottom) {
+    doc.scrollTop = doc.scrollHeight;
+  }
+}
+
+//////////////////////////////////////////////////////////////////////////
+
+var ws = null;
+
+function startSession() {
+  ws = new WebSocket('ws://192.168.200.1:4000/');
+
+  ws.onopen = function() {
+    submitMessage("open", "Welcome. I, Shihira Fung, am at your service.");
+  };
+
+  ws.onclose = function() {
+    setTimeout(function() {
+      submitMessage("close", "Goodbye.\n");
+      startSession();
+    }, 1000);
+  };
+
+  ws.onmessage = function(event) {
+    const reader = new FileReader();
+    reader.onload = function() {
+      submitMessage("message", reader.result);
+    };
+    reader.readAsText(event.data);
+  };
+
+  var script = get_param("file");
+  script = script ? ("!" + decodeURIComponent(script)) : "";
+  $(stdin).val(script);
+}
+
+function useAsInput(input) {
+  ws.send(input);
+  submitMessage("send", input);
+}
+
+$(document).ready(startSession);
+
+$(stdin).keyup(function(event) {
+  event.preventDefault();
+  if (event.keyCode == 13) {
+    useAsInput($(this).val());
+    $(this).val("");
+  }
+});
+    </script>
+    
+  </body>
+</html>

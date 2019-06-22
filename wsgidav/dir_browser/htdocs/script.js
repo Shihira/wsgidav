@@ -35,10 +35,16 @@ $(".command-button").click(function() {
     var link = $(this).parent().parent().find("a").attr("href");
     var ext = link.match(/\.[a-zA-Z0-9]+$/); ext = ext ? ext[0] : null;
 
-    $("#command-cbz").attr("href", ext == ".cbz" ? "/Pages/ComicReader.html?" + $.param({"cbz": link}) : "#");
-    $("#command-cbz")[ext == ".cbz" ? "removeClass" : "addClass"]("disabled");
-    $("#command-md").attr("href", ext == ".md" ? "/Pages/Markdown.html?" + $.param({"md": link}) : "#");
-    $("#command-md")[ext == ".md" ? "removeClass" : "addClass"]("disabled");
+    $(".command-btn").each(function() {
+        var required_ext = $(this).attr("data-ext");
+        var href = $(this).attr("data-href");
+
+        required_ext = required_ext.split(",");
+        var enabled = required_ext.indexOf(ext) >= 0;
+
+        $(this).attr("href", enabled ? href + "?" + $.param({"file": link}) : "#");
+        $(this)[enabled ? "removeClass" : "addClass"]("disabled");
+    });
 
     $("#command-title").text(decodeURIComponent(link));
     $("#command-dialog").modal();

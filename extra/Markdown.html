@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
+    <title>Markdown Viewer</title>
+    <script src="https://cdn.staticfile.org/jquery/3.3.1/jquery.min.js"></script>
+    <script src="https://cdn.staticfile.org/showdown/1.9.0/showdown.min.js"></script>
+    <script src="/Pages/assets/utils.js"></script>
+    <style>
+      #markdown-container {
+        max-width: 1024px;
+        margin: auto;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="markdown-container">
+    </div>
+
+<script>
+  var converter = new showdown.Converter();
+
+  function publish(md) {
+    $("#markdown-container").html(converter.makeHtml(md));
+  }
+
+  $(document).ready(function() {
+    var md_path = get_param("file");
+    var title = get_filename_without_extension(md_path);
+    title = decodeURIComponent(title);
+    title = title.replace(/([A-Z])/g, " $1").trim();
+
+    $.get(md_path)
+      .done(function(data) {
+        publish(data);
+        document.title = title;
+      })
+      .fail(function(data) {
+        publish("Failed to read from `" + md_path + "`");
+      });
+  });
+</script>
+  </body>
+</html>
