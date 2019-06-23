@@ -77,12 +77,13 @@
           '</div>');
 
         var displayer = page.find(".comic-displayer");
-        displayer.attr("src", "/Pages/Config/comic-loading.png");
+        displayer.attr("src", "/Pages/assets/comic-loading.png");
         displayer.attr("data-page", i + 1);
         displayer.attr("data-src", get_param("file") + "?" + $.param({
           q: "img",
           chapter: chapter,
           page: i,
+          max_size: 2048,
         }));
 
         var page_number = page.find(".comic-displayer-number");
@@ -97,9 +98,13 @@
 
         $("#book").append(page);
 
+        displayer.css("min-height", "400px");
         displayer.lazy({
           enableThrottle: true,
           throttle: 250,
+          afterLoad: function(elem) {
+            $(elem).css("min-height", "");
+          }
         });
       }
     }

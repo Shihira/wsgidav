@@ -63,6 +63,9 @@ class ComicQuery(object):
         first_chapter = next(iter(toc))
         chapter = self._query.get("chapter", [first_chapter])[0]
 
+        max_size = self._query.get("max_size", ["2048"])[0]
+        max_size = int(max_size) if max_size.isdigit() else "2048"
+
         if chapter not in toc:
             ret = {"message": "chapter %s not found " % chapter}
             return "404 Not Found", [], dumps(ret)
@@ -73,9 +76,17 @@ class ComicQuery(object):
 
         with zipfile.ZipFile(self._res.get_file_path()) as z:
             f = pages[page]
-            mime = mimetypes.guess_type(f)[0]
             content = z.read(f)
 
-            return "200 OK", [("Content-Type", mime)], content
+            from PIL import Image
+            import io
+
+            image = Image.open(io.BytesIO(content))
+            image.thumbnail((max_size, max_size), Image.BILINEAR)
+            image = image.convert("RGB")
+            image_bytes = io.BytesIO()
+            image.save(image_bytes, "jpeg")
+
+            return "200 OK", [("Content-Type", "image/jpeg")], image_bytes.getvalue()
 
 
