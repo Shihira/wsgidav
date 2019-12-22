@@ -13,11 +13,25 @@ class ComicQuery(object):
     def __init__(self, res, q):
         self._res = res
         self._query = q
+
+        cbz_name = os.path.basename(self._res.get_file_path())
+        if cbz_name == ".folder.cbz":
+            self._get_comic_file_list = self._folder_get_comic_file_list
+            self._get_comic_content = self._folder_get_comic_content
+        else:
+            self._get_comic_file_list = self._zipped_get_comic_file_list
+            self._get_comic_content = self._zipped_get_comic_content
     
     def is_valid(self):
         return isinstance(self._res, FileResource)
 
-    def _get_comic_toc(self):
+    def _get_comic_content(self, filename):
+        raise NotImplementedError()
+
+    def _get_comic_file_list(self):
+        raise NotImplementedError()
+
+    def get_comic_toc(self):
         file_path = self._res.get_file_path()
 
         if file_path in COMIC_CACHE:
@@ -25,9 +39,7 @@ class ComicQuery(object):
             if lm == self._res.get_last_modified():
                 return old_toc
 
-        files = []
-        with zipfile.ZipFile(file_path) as z:
-            files = z.namelist()
+        files = self._get_comic_file_list()
 
         toc = {}
 
@@ -47,7 +59,7 @@ class ComicQuery(object):
         return toc
 
     def info(self):
-        toc = self._get_comic_toc()
+        toc = self.get_comic_toc()
         info = {}
         for k, v in toc.items():
             info[k] = len(v)
@@ -55,7 +67,7 @@ class ComicQuery(object):
         return "200 OK", [("Content-Type", "application/json")], dumps(info)
 
     def img(self):
-        toc = self._get_comic_toc()
+        toc = self.get_comic_toc()
 
         page = self._query.get("page", ["0"])[0]
         page = int(page) if page.isdigit() else 0
@@ -74,19 +86,63 @@ class ComicQuery(object):
             ret = {"message": "chapter %s has %d pages while %d is requested" % (chapter, len(pages), page)}
             return "404 Not Found", [], dumps(ret)
 
+        filename = pages[page]
+        content = self._get_comic_content(filename)
+
+        from PIL import Image
+        import io
+
+        image = Image.open(io.BytesIO(content))
+        image.thumbnail((max_size, max_size), Image.BILINEAR)
+        image = image.convert("RGB")
+        image_bytes = io.BytesIO()
+        image.save(image_bytes, "jpeg")
+
+        return "200 OK", [("Content-Type", "image/jpeg")], image_bytes.getvalue()
+
+
+    ###########################################################################
+    #### Zipped
+    def _zipped_get_comic_file_list(self):
+        file_path = self._res.get_file_path()
+
+        files = []
+        with zipfile.ZipFile(file_path) as z:
+            files = z.namelist()
+        return files
+
+    def _zipped_get_comic_content(self, filename):
+        file_path = self._res.get_file_path()
+
         with zipfile.ZipFile(self._res.get_file_path()) as z:
-            f = pages[page]
-            content = z.read(f)
+            content = z.read(filename)
 
-            from PIL import Image
-            import io
+        return content
 
-            image = Image.open(io.BytesIO(content))
-            image.thumbnail((max_size, max_size), Image.BILINEAR)
-            image = image.convert("RGB")
-            image_bytes = io.BytesIO()
-            image.save(image_bytes, "jpeg")
+    #### Folder
+    def _folder_get_comic_file_list(self):
+        file_path = os.path.dirname(self._res.get_file_path())
 
-            return "200 OK", [("Content-Type", "image/jpeg")], image_bytes.getvalue()
+        import glob
+        pwd = os.getcwd()
+        try:
+            os.chdir(file_path)
+            files = glob.glob("**/*", recursive=True)
+        finally:
+            os.chdir(pwd)
+        return files
 
+    def _folder_get_comic_content(self, filename):
+        file_path = os.path.dirname(self._res.get_file_path())
+
+        import glob
+        pwd = os.getcwd()
+        content = b""
+        try:
+            os.chdir(file_path)
+            with open(filename, "rb") as f:
+                content = f.read()
+        finally:
+            os.chdir(pwd)
+        return content
 

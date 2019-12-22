@@ -1540,6 +1540,7 @@ class RequestServer(object):
             mime = res.get_content_type()
             if mime not in MIME_QUERY:
                 break
+            _logger.info("Mime-Type: " + mime)
             cls = MIME_QUERY[mime]
             inst = cls(res, query)
             if not inst.is_valid():
