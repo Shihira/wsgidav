@@ -65,7 +65,9 @@
     </style>
   </head>
   <script src="https://cdn.staticfile.org/jquery/3.3.1/jquery.min.js"></script>
+  <!-- one of the following should load -->
   <script src="/Pages/assets/utils.js"></script>
+  <script src="http://192.168.200.1:8080/Pages/assets/utils.js"></script>
   <body>
     <div id="container">
 
@@ -84,19 +86,22 @@ var currentMessageType = "";
 const regexLineNum = new RegExp("^\\s*\\d+\\.?\\s+", "m");
 const regexUrl = new RegExp("(?!mailto:)(?:(?:http|https|ftp)://)(?:\\S+(?::\\S*)?@)?(?:(?:(?:[1-9]\\d?|1\\d\\d|2[01]\\d|22[0-3])(?:\\.(?:1?\\d{1,2}|2[0-4]\\d|25[0-5])){2}(?:\\.(?:[0-9]\\d?|1\\d\\d|2[0-4]\\d|25[0-4]))|(?:(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)(?:\\.(?:[a-z\\u00a1-\\uffff0-9]+-?)*[a-z\\u00a1-\\uffff0-9]+)*(?:\\.(?:[a-z\\u00a1-\\uffff]{2,})))|localhost)(?::\\d{2,5})?(?:(/|\\?|#)[^\\s]*)?", "i");
 const regexClear = new RegExp("^=====CLEAR=====\\n", "m");
+const regexYN = new RegExp("[Yy]\\/[Nn]", "m");
 
 function parseText(text) {
   var div = $("<div></div>");
   var curtext = text;
 
   var getLen = function(x) { return x ? x.length : 0; }
-  var doLineNumParse = getLen(curtext.match(/\n/g)) == getLen(curtext.match(/\n\s*\d/g)) + 1;
+  //var doLineNumParse = getLen(curtext.match(/\n/g)) == getLen(curtext.match(/\n\s*\d/g)) + 1;
+  var doLineNumParse = true;
 
   while(curtext) {
     var matches = [
       doLineNumParse ? curtext.match(regexLineNum) : null,
       curtext.match(regexUrl),
       curtext.match(regexClear),
+      curtext.match(regexYN),
     ];
 
     var minIndex = Number.MAX_VALUE;
@@ -137,6 +142,13 @@ function parseText(text) {
     if (minMatch == 2) {
       div.html("");
       currentMessage = curtext.substr(minIndex + minIndexLen);
+    }
+
+    // YN
+    if (minMatch == 3) {
+      div.append($('<a href="javascript:void(0)" onclick="useAsInput($(this).text())">Y</a>'));
+      div.append($('<span>/</span>'));
+      div.append($('<a href="javascript:void(0)" onclick="useAsInput($(this).text())">N</a>'));
     }
 
     curtext = curtext.substr(minIndex + minIndexLen);

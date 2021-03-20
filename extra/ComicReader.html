@@ -40,8 +40,9 @@
   display: block;
   text-decoration: none;
   padding: 5px;
+  padding-left: 10px;
   margin: 10px;
-  text-align: center;
+  text-align: /*center*/left;
   border: #444 solid 1px;
 }
 
@@ -111,12 +112,21 @@
 
     function initChapter(data)
     {
-      for (var chapter in data) {
-        var link = $("<a></a>")
-        link.attr("href", location.pathname + "?" + $.param({
+      var chapters = Object.keys(data).sort();
+
+      for (var i in chapters) {
+        var chapter = chapters[i];
+        href = location.pathname + "?" + $.param({
           "file": get_param("file"),
           "chapter": chapter,
-        }));
+        });
+        if (chapters.length == 1) {
+          location.href = href;
+          return;
+        }
+
+        var link = $("<a></a>")
+        link.attr("href", href);
         link.attr("target", "_blank");
         link.addClass("comic-chapter");
         link.text(chapter ? chapter : "Untitled");

@@ -146,3 +146,26 @@ class ComicQuery(object):
             os.chdir(pwd)
         return content
 
+@mime_query(["application/vnd.maxmind.maxmind-db"])
+class MmdbQuery(object):
+    def __init__(self, res, q):
+        self._res = res
+        self._query = q
+
+    def is_valid(self):
+        return isinstance(self._res, FileResource)
+
+    def query(self):
+        import maxminddb
+        db = maxminddb.open_database(self._res.get_file_path())
+        result = db.get(self._query.get("ip", "127.0.0.1")[0])
+        prop = self._query.get("prop", "all")[0]
+
+        if result:
+            if prop == "countrycode":
+                return "200 OK", [("Content-Type", "text/plain")], result["country"]["iso_code"]
+            else:
+                return "200 OK", [("Content-Type", "text/json")], dumps(result)
+        else:
+            return "404 Not Found", [], ""
+
